@@ -1,0 +1,16 @@
+{
+    "manifest_version": 3,
+    "name": "随机搞笑一下",
+    "description": "点一下笑一下，上班摸鱼神器",
+    "version": "0.1.0",
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "48": "icon.png"
+        }
+    },
+    "icons": {
+        "48": "icon.png"
+    },
+    "permissions": []
+}
