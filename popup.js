@@ -10,8 +10,9 @@ const btnRandomFav = document.getElementById("btn-random-fav");
 const TOTAL_JOKES = jokes.length;
 const TOTAL_MEDIA = mediaItems.length;
 
-// 当前显示的内容（用于收藏时知道要存哪个id）
-let currentItem = null;
+
+let currentItem = null;         // 当前显示的内容（用于收藏时知道要存哪个id）
+let isInFavoriteMode = false;   // 是否正在浏览收藏模式
 
 
 // 辅助函数：从数组中随机取一项
@@ -113,6 +114,21 @@ async function addToFavorite(item) {
     }
 }
 
+// 从收藏中删除当前项
+async function removeFromFavorite(item) {
+    if(!item?.id) return; //+++??
+
+    const key = item.id.startsWith("j_") ? "favoriteJokes" : "favoriteMedia";
+    const data = await chrome.storage.local.get(key);
+    let list = data[key] || []; //+++为什么这里用let 而不是 const
+
+    list = list.filter(id => id !== item.id);
+    await chrome.storage.local.set({ [key]: list});
+
+    alert("已从收藏中删除");
+
+}
+
 // 显示内容到页面
 function renderContent(item) {
     contentEl.innerHTML = "";
@@ -136,6 +152,20 @@ function renderContent(item) {
 
     // 记住当前 item，用于收藏
     currentItem = item;
+}
+
+// 切换按钮为删除模式（红色）
+function switchToDeleteMode() {
+    isInFavoriteMode = true;
+    btnFavorite.textContent = "删除";
+    btnFavorite.classList.add("delete-mode");
+}
+
+// 切换回正常模式
+function switchToFavoriteMode() {
+    isInFavoriteMode = false;
+     btnFavorite.textContent = "收藏";
+    btnFavorite.classList.remove("delete-mode");
 }
 
 // 主逻辑：显示下一个
@@ -165,6 +195,7 @@ async function showNext() {
     // 正常显示
     renderContent(item);
     await markAsSeen(item);
+    switchToFavoriteMode();        // 切换回收藏模式
 }
 
 // 显示随机收藏
@@ -175,15 +206,25 @@ async function showRandomFavorite() {
         return;
     }
     renderContent(item);
+    switchToDeleteMode();          // 进入删除模式
 }
 
 // 事件绑定
 btnNext.addEventListener('click', showNext); //p1
-btnFavorite.addEventListener("click", () => {
-    if (currentItem) {
-        addToFavorite(currentItem);
+btnFavorite.addEventListener("click", async () => {
+    if (!currentItem) {
+         alert("请先加载一条内容");
+         return;
+    }
+
+    if (isInFavoriteMode) {
+        // 删除模式
+        await removeFromFavorite(currentItem);
+        // 删除后立即显示下一条随即收藏
+        await showRandomFavorite();
     } else {
-        alert("请先加载一条内容");
+        // 正常模式
+        await addToFavorite(currentItem);
     }
 });
 btnRandomFav.addEventListener("click", showRandomFavorite);
