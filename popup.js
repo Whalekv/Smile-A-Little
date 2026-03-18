@@ -1,48 +1,195 @@
-//段子数据
-const jokes = [
-    "程序员最害怕的两个字是——“重构”",
-    "为什么程序员喜欢黑暗模式？因为灯亮了工资就没了",
-    "我老婆让我别买游戏机，我说这是投资——投资我开心",
-    "前端和后端分手了，因为后端总说：你样式我不管",
-    "程序员谈恋爱就像debug：到处都是bug，还不让说话"
-];
-
-// GIF数据
-const mediaItems = [
-    { type: "gif",   url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMDgxNzR1YnB6aWJ3bXB4NmFweHVreW1mNXhzZ2xwOWh6dG04dGxkNiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/nGMnDqebzDcfm/giphy.gif" },
-    { type: "gif",   url: "https://media.giphy.com/media/11ZSwQNWba4YF2/giphy.gif" },
-    { type: "gif",   url: "https://media.giphy.com/media/xVRRDVP6lqtNQJrzN7/giphy.gif" },
-    { type: "gif",   url: "https://media.giphy.com/media/ukMiDlCmdv2og/giphy.gif" },
-];
+// 引入数据
+import { jokes, mediaItems } from "./data/content.js";
 
 const contentEl = document.getElementById('content');
-const btn = document.getElementById('btn-next');
+const btnNext = document.getElementById('btn-next');
+const btnFavorite = document.getElementById("btn-favorite");
+const btnRandomFav = document.getElementById("btn-random-fav");
 
-// 显示随机笑话
-function showRandomJoke() {
-    //文字与gif随机出现的概率
-    const isMedia = Math.random() < 0.4;
+// 缓存长度，方便判断是否完全看完
+const TOTAL_JOKES = jokes.length;
+const TOTAL_MEDIA = mediaItems.length;
 
-    if(!isMedia) {
-        const idx = Math.floor(Math.random() * jokes.length);
-        contentEl.textContent = `<div class="joke"> ${jokes[idx]} </div>`;
-    } else {
-        const mediaIdx = Math.floor(Math.random() * mediaItems.length);
-        const item = mediaItems[mediaIdx];
+// 当前显示的内容（用于收藏时知道要存哪个id）
+let currentItem = null;
 
-        if (item.type === "gif" || item.type === "image") {
-            const tag = item.type === "gif" ? "img" : "img"; //+++
-            contentEl.innerHTML = `
-                <img
-                    src = "${item.url}",
-                    alt = "搞笑图/gif"
-                    sytle = "max-width:100%; height:auto; border-radius:8px;"
-                >
-            `;
+
+// 辅助函数：从数组中随机取一项
+function randomFrom(array) {
+    if (array.length === 0) return null;
+    const idx = Math.floor(Math.random() * array.length);
+    return array[idx];
+}
+
+// 获取下一个未看过的内容
+async function getNextUnseen() {
+    const data = await chrome.storage.local.get(["seenJokes", "seenMedia"]); 
+    const seenJokes = new Set(data.seenJokes || []);
+    const seenMedia = new Set(data.seenMedia || []); // +++p4
+
+    // 还没有看的数据的数组
+    const unseenJokes = jokes.filter((j) => !seenJokes.has(j.id));
+    const unseenMedia = mediaItems.filter((m) => !seenMedia.has(m.id));
+
+    // 全部看完了
+    if (unseenJokes.length === 0 && unseenMedia.length === 0) {
+        return{ type: "all_seen"};
+    }
+
+    // 决定本次想显示哪一类
+    const wantJoke = Math.random() < 0.6;
+
+    let selected = null;
+
+    if (wantJoke) {
+        if (unseenJokes.length > 0) {
+            selected = randomFrom(unseenJokes);
+        } else if (unseenMedia.length > 0) {
+            // 想要Joke，但Joke没了，降级给media
+            selected = randomFrom(unseenMedia);
         }
+    } else {
+        if (unseenMedia.length > 0) {
+            selected = randomFrom(unseenMedia);
+        } else if (unseenJokes.length > 0) {
+            // 想要media，但mediae没了，降级给joke
+            selected = randomFrom(unseenJokes);
+        }
+    }
+
+    if (!selected) {
+        selected = randomFrom(unseenJokes.length > 0 ? unseenJokes : unseenMedia);
+    }
+
+    return selected;
+}
+
+// 从收藏夹中随机取一条（允许重复）
+async function getRandomFavorite() {
+    const data = await chrome.storage.local.get(["favoriteJokes", "favoriteMedia"]);
+    const favJokes = data.favoriteJokes || [];
+    const favMedia = data.favoriteMedia || [];
+
+    const allFavorites = [
+        ...favJokes.map(id => jokes.find(j => j.id === id)).filter(Boolean), //+++p5
+        ...favMedia.map(id => mediaItems.find(m => m.id === id)).filter(Boolean)
+    ];
+
+    if (allFavorites.length === 0) {
+        return null; // 还没有收藏
+    }
+
+    return randomFrom(allFavorites);
+}
+
+// 保存已查看的记录
+async function markAsSeen (item) {
+    if (!item || !item.id) return;
+
+    const key = item.id.startsWith("j_") ? "seenJokes" : "seenMedia";
+    const data = await chrome.storage.local.get(key);
+    const list = data[key] || []; //+++p2
+
+    if(!list.includes(item.id)) {
+        list.push(item.id);
+        await chrome.storage.local.set({ [key]: list});// +++p3
     }
 }
 
-btn.addEventListener('click', showRandomJoke); //+++为什么这里的showRandomJoke没有括号
+// 收藏当前内容
+async function addToFavorite(item) {
+    if (!item || !item.id) return;
 
-showRandomJoke();
+    const key = item.id.startsWith("j_") ? "favoriteJokes" : "favoriteMedia";
+    const data = await chrome.storage.local.get(key);
+    const list = data[key] || [];
+
+    if (!list.includes(item.id)) {
+        list.push(item.id);
+        await chrome.storage.local.set({ [key]: list});
+        alert("已收藏！");
+    } else {
+        alert("已经收藏过了");
+    }
+}
+
+// 显示内容到页面
+function renderContent(item) {
+    contentEl.innerHTML = "";
+
+    if (item.text) {
+        // joke
+        const div = document.createElement("div");
+        div.className = "joke";
+        div.textContent = item.text;
+        contentEl.appendChild(div);
+    } else if (item.url) {
+        // media
+        const img = document.createElement("img");
+        img.src = item.url;
+        img.alt = "搞笑图/gif";
+        img.style.maxWidth = "100%";
+        img.style.height = "auto";
+        img.style.borderRadius = "8px";
+        contentEl.appendChild(img);
+    }
+
+    // 记住当前 item，用于收藏
+    currentItem = item;
+}
+
+// 主逻辑：显示下一个
+async function showNext() {
+    const item = await getNextUnseen();
+    if (item.type === "all_seen") {
+        // 全部看完的交互
+        const confirmed = confirm("已看完所有内容，是否重置观看记录？\n（确定 = 重置并继续，取消 = 关闭弹窗）");
+
+        if (confirmed) {
+            await chrome.storage.local.remove(["seenJokes", "seenMedia"]);
+            // 重置后重新获取并显示
+            const newItem = await getNextUnseen();
+            if (newItem ) { 
+                renderContent(newItem);
+                await markAsSeen(newItem);
+            } else {
+                contentEl.innerHTML = '<div class="joke">内容已重置，请点击“换一个”继续</div>';
+            }
+        } else {
+            // 用户取消
+            contentEl.innerHTML = '<div class="joke">已看完所有内容\n点击“换一个”可再次确认重置</div>'
+        }
+        return;
+    }
+
+    // 正常显示
+    renderContent(item);
+    await markAsSeen(item);
+}
+
+// 显示随机收藏
+async function showRandomFavorite() {
+    const item = await getRandomFavorite();
+    if (!item) {
+        contentEl.innerHTML = '<div class="joke">你还没有收藏任何内容哦~</div>';
+        return;
+    }
+    renderContent(item);
+}
+
+// 事件绑定
+btnNext.addEventListener('click', showNext); //p1
+btnFavorite.addEventListener("click", () => {
+    if (currentItem) {
+        addToFavorite(currentItem);
+    } else {
+        alert("请先加载一条内容");
+    }
+});
+btnRandomFav.addEventListener("click", showRandomFavorite);
+
+// 首次加载
+showNext().catch((err) => {
+    console.error("初始化失败", err);
+    contentEl.innerHTML = '<div class="joke">加载失败，请刷新插件</div>'
+});

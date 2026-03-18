@@ -12,5 +12,7 @@
     "icons": {
         "48": "icon.png"
     },
-    "permissions": []
+    "permissions": [
+        "storage"
+    ]
 }
