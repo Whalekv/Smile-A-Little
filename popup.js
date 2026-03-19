@@ -15,7 +15,77 @@ let currentItem = null;         // 当前显示的内容（用于收藏时知道
 let isInFavoriteMode = false;   // 是否正在浏览收藏模式
 
 
-const TOTAL_JOKES = 6;
+// ==================== 语言配置映射（核心） ====================
+const langConfig = {
+    zh: {
+        // 按钮文字
+        btnNext: '换一个',
+        btnFavorite: '收藏',
+        btnDelete: '删除',
+        btnRandomFav: '随机收藏',
+        btnLangSwitch: '🇬🇧 EN',
+
+        // 提示文字
+        noFavorite: '你还没有收藏任何内容哦~',
+        allSeen: '已看完所有内容，是否重置观看记录？\n（确定 = 重置并继续，取消 = 关闭弹窗）',
+        loadFail: '请先加载一条内容',
+        favorited: '已收藏！',
+        alreadyFav: '已经收藏过了',
+        removed: '已从收藏中删除',
+
+        // storage keys
+        seenJokes: 'seenJokes',
+        seenMedia: 'seenMedia',
+        favoriteJokes: 'favoriteJokes',
+        favoriteMedia: 'favoriteMedia'
+    },
+    en: {
+        // 按钮文字
+        btnNext: 'Next',
+        btnFavorite: 'Favorite',
+        btnDelete: 'Delete',
+        btnRandomFav: 'Random Fav',
+        btnLangSwitch: '🇨🇳 中文',
+
+        // 提示文字
+        noFavorite: 'You have no favorites yet~',
+        allSeen: 'All content has been viewed. Reset viewing history?\n(OK = reset and continue, Cancel = close)',
+        loadFail: 'Please load content first',
+        favorited: 'Favorited!',
+        alreadyFav: 'Already favorited',
+        removed: 'Removed from favorites',
+
+        // storage keys
+        seenJokes: 'seenJokes_en',
+        seenMedia: 'seenMedia_en',
+        favoriteJokes: 'favoriteJokes_en',
+        favoriteMedia: 'favoriteMedia_en'
+    }
+};
+
+
+function getConfig() {
+    return langConfig[currentLang];
+}
+
+
+// 获取已看 storage key
+function getSeenKey(isJoke) {
+    return isJoke ? getConfig().seenJokes : getConfig().seenMedia;
+}
+
+
+// 获取收藏 storage key
+function getFavoriteKey(isJoke) {
+    return isJoke ? getConfig().favoriteJokes : getConfig().favoriteMedia;
+}
+
+
+// 获取内容类型
+function getItemType(item) {
+    return item?.id?.startsWith('j_') ? 'joke' : 'media';
+}
+
 
 // 辅助函数：从数组中随机取一项
 function randomFrom(array) {
@@ -47,13 +117,11 @@ async function loadLanguageData(lang) {
 
 // 获取下一个未看过的内容
 async function getNextUnseen() {
-    const data = await chrome.storage.local.get(["seenJokes", "seenMedia", "seenJokes_en", "seenMedia_en"]); 
+    const config = getConfig();
+    const data = await chrome.storage.local.get([config.seenJokes, config.seenMedia]); 
 
-    const seenKeyJ = currentLang === 'zh' ? 'seenJokes' : 'seenJokes_en';
-    const seenKeyM = currentLang === 'zh' ? 'seenMedia' : 'seenMedia_en';
-
-    const seenJokes = new Set(data[seenKeyJ] || []);
-    const seenMedia = new Set(data[seenKeyM] || []); // +++p4
+    const seenJokes = new Set(data[config.seenJokes] || []);
+    const seenMedia = new Set(data[config.seenMedia] || []); // +++p4
 
     // 还没有看的数据的数组
     const unseenJokes = jokes.filter((j) => !seenJokes.has(j.id));
@@ -94,14 +162,11 @@ async function getNextUnseen() {
 
 // 从收藏夹中随机取一条（允许重复）
 async function getRandomFavorite() {
-    const data = await chrome.storage.local.get(["favoriteJokes", "favoriteMedia", "favoriteJokes_en", "favoriteMedia_en"]);
+    const config = getConfig();
+    const data = await chrome.storage.local.get([config.favoriteJokes, config.favoriteMedia]);
 
-    const favKeyJ = currentLang === 'zh' ? 'favoriteJokes' : 'favoriteJokes_en';
-    const favKeyM = currentLang === 'zh' ? 'favoriteMedia' : 'favoriteMedia_en';
-
-
-    const favJokes = data[favKeyJ] || [];
-    const favMedia = data[favKeyM] || [];
+    const favJokes = data[config.favoriteJokes] || [];
+    const favMedia = data[config.favoriteMedia] || [];
 
     const allFavorites = [
         ...favJokes.map(id => jokes.find(j => j.id === id)).filter(Boolean), //+++p5
@@ -119,16 +184,13 @@ async function getRandomFavorite() {
 async function markAsSeen (item) {
     if (!item?.id) return;
 
-    const isJoke = item.id.startsWith("j_");
-    const seenKey = isJoke
-        ? (currentLang === 'zh' ? 'seenJokes' : 'seenJokes_en')
-        : (currentLang === 'zh' ? 'seenMedia' : 'seenMedia_en');
-    const data = await chrome.storage.local.get(seenKey);
-    const list = data[seenKey] || []; //+++p2
+    const key = getSeenKey(item.id.startsWith("j_"));
+    const data = await chrome.storage.local.get(key);
+    const list = data[key] || []; //+++p2
 
     if(!list.includes(item.id)) {
         list.push(item.id);
-        await chrome.storage.local.set({ [seenKey]: list});// +++p3
+        await chrome.storage.local.set({ [key]: list});// +++p3
     }
 }
 
@@ -136,17 +198,13 @@ async function markAsSeen (item) {
 async function addToFavorite(item) {
     if (!item?.id) return;
 
-    const isJoke = item.id.startsWith("j_");
-    const favKey = isJoke
-        ? (currentLang === 'zh' ? 'favoriteJokes' : 'favoriteJokes_en')
-        : (currentLang === 'zh' ? 'favoriteMedia' : 'favoriteMedia_en');
-
-    const data = await chrome.storage.local.get(favKey);
-    const list = data[favKey] || [];
+    const key = getFavoriteKey(item.id.startsWith("j_"));
+    const data = await chrome.storage.local.get(key);
+    const list = data[key] || [];
 
     if (!list.includes(item.id)) {
         list.push(item.id); // p7
-        await chrome.storage.local.set({ [favKey]: list});
+        await chrome.storage.local.set({ [key]: list});
         alert(currentLang === 'zh' ? "已收藏！" : "Favorited !");
     } else {
         alert(currentLang === 'zh' ? "已经收藏过了" : "Already favorited");
@@ -157,18 +215,15 @@ async function addToFavorite(item) {
 async function removeFromFavorite(item) {
     if(!item?.id) return; // p6
 
-    const isJoke = item.id.startsWith("j_");
-    const favKey = isJoke
-        ? (currentLang === 'zh' ? 'favoriteJokes' : 'favoriteJokes_en')
-        : (currentLang === 'zh' ? 'favoriteMedia' : 'favoriteMedia_en');
+    const key = getFavoriteKey(item.id.startsWith('j_'));   
 
-    const data = await chrome.storage.local.get(favKey);
-    let list = data[favKey] || []; // p7
+    const data = await chrome.storage.local.get(key);
+    let list = data[key] || []; // p7
 
     list = list.filter(id => id !== item.id);
-    await chrome.storage.local.set({ [favKey]: list});
+    await chrome.storage.local.set({ [key]: list});
 
-    alert(currentLang === 'zh' ? "已从收藏中删除" : "Removed from favorites");
+   alert(getConfig().removed);
 
 }
 
@@ -202,14 +257,14 @@ function renderContent(item) {
 // 切换按钮为删除模式（红色）
 function switchToDeleteMode() {
     isInFavoriteMode = true;
-    btnFavorite.textContent = currentLang === 'zh' ? "删除" : "Delete";
+    btnFavorite.textContent = getConfig().btnDelete;
     btnFavorite.classList.add("delete-mode");
 }
 
 // 切换回正常模式
 function switchToFavoriteMode() {
     isInFavoriteMode = false;
-     btnFavorite.textContent = currentLang === 'zh' ? "收藏" : "Favorite";
+    btnFavorite.textContent = getConfig().btnFavorite;
     btnFavorite.classList.remove("delete-mode");
 }
 
@@ -217,17 +272,11 @@ function switchToFavoriteMode() {
 async function showNext() {
     const item = await getNextUnseen();
     if (item.type === "all_seen") {
-        // 全部看完的交互
-        const msg = currentLang === 'zh'
-            ? "已看完所有内容，是否重置观看记录？\n（确定 = 重置并继续，取消 = 关闭弹窗）"
-            : "All content has been viewed. Reset viewing history?\n(OK = reset and continue, Cancel = close)";
-        const confirmed = confirm(msg);
+        const confirmed = confirm(getConfig().allSeen);
 
         if (confirmed) {
-            const keys = currentLang === 'zh'
-                ? ["seenJokes", "seenMedia"]
-                : ["seenJokes_en", "seenMedia_en"]
-            await chrome.storage.local.remove(keys);
+            const config = getConfig();
+            await chrome.storage.local.remove([config.seenJokes, config.seenMedia]);
             // 重置后重新获取并显示
             const newItem = await getNextUnseen();
             if (newItem && newItem.type !== "all_seen" ) { 
@@ -248,9 +297,7 @@ async function showNext() {
 async function showRandomFavorite() {
     const item = await getRandomFavorite();
     if (!item) {
-        contentEl.innerHTML = `<div class="joke"> ${
-            currentLang === 'zh' ? "你还没有收藏任何内容哦~" : "You have no favorites yet~"
-        }</div>`;
+        contentEl.innerHTML = `<div class="joke"> ${ getConfig().noFavorite }</div>`;
         return;
     }
     renderContent(item);
@@ -264,7 +311,10 @@ async function switchLanguage() {
     await loadLanguageData(newLang);
 
     // 更新按钮文字
-    btnLangSwitch.textContent = newLang === 'zh' ? 'GB EN' : 'CN 中文';
+    // 更新所有按钮文字
+    btnNext.textContent = getConfig().btnNext;
+    btnRandomFav.textContent = getConfig().btnRandomFav;
+    btnLangSwitch.textContent = getConfig().btnLangSwitch;
 
     // 切换后立即显示新语言的内容
     switchToFavoriteMode();
@@ -275,7 +325,7 @@ async function switchLanguage() {
 btnNext.addEventListener('click', showNext); //p1
 btnFavorite.addEventListener("click", async () => {
     if (!currentItem) {
-         alert( currentLang === 'zh' ? "请先加载一条内容" : "Please load content first");
+         alert( getConfig().loadFail);
          return;
     }
 
@@ -302,8 +352,11 @@ async function init() {
 
     await loadLanguageData(saveLang);
 
-    // 设置切换语言按钮初始文字
-    btnLangSwitch.textContent = saveLang === 'zh' ? 'GB EN' : 'CN 中文';
+    // 初始化所有按钮文字
+    btnNext.textContent = getConfig().btnNext;
+    btnRandomFav.textContent = getConfig().btnRandomFav;
+    btnFavorite.textContent = getConfig().btnFavorite;
+    btnLangSwitch.textContent = getConfig().btnLangSwitch;
     
     // 首次显示内容
     await showNext();
