@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,63 +7,100 @@
     <style>
         body {
             width: 320px;
-            min-height: 200px;
+            min-height: 220px;
             padding: 16px;
             font-family: system-ui, sans-serif;
-            text-align: center;
             background: #0f0f0f;
             color: #e0e0e0;
+            margin: 0;
+        }
+        #header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
         }
         #content {
-            min-height: 120px;
+            min-height: 160px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 16px;
+            padding: 8px;
+            background: #1a1a1a;
+            border-radius: 8px;
         }
         .joke {
             font-size: 1.1rem;
             line-height: 1.5;
             padding: 12px;
+            text-align: left;
         }
         img {
             max-width: 100%;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
+
+        /* 按钮区域 */
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
         button {
-            padding: 10px 24px;
+            padding: 10px 16px;
             font-size: 1rem;
             background: #6200ea;
             color: white;
             border: none;
             border-radius: 6px;
             cursor: pointer;
+            flex: 1;
+            min-width: 90px;
         }
-
-        #btn-next {
-            background: #6200ea;
-            color: white;
-        }
-
-        #btn-favorite {
-            background: #6200ea;
-            color: white;
-        }
-        #btn-favorite.delete-mode {
-            background: #d32f2f;   /* 红色 */
-            color: white;
-        }
-
 
         button:hover {
             background: #7f39fb;
         }
+
+        #btn-next {
+            background: #6200ea;
+        }
+
+        #btn-favorite {
+            background: #6200ea;
+        }
+        #btn-favorite.delete-mode {
+            background: #d32f2f;
+        }
+
+        /* 语言切换按钮样式 */
+        #btn-lang-switch {
+            background: #333;
+            font-size: 0.95rem;
+            padding: 8px 12px;
+            min-width: 70px;
+            flex: 0 0 auto;
+        }
+
+        #btn-lang-switch:hover {
+            background: #555;
+        }
     </style>
 </head>
 <body>
+    <!-- 头部：切换语言按钮 -->
+    <div id="header">
+        <button id="btn-lang-switch">GB EN</button>
+    </div>
+    <!-- 主要内容区域 -->
     <div id="content"> 加载中</div>
-    <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+
+    <!-- 按钮 -->
+    <div class="button-group">
         <button id="btn-next">换一个</button>
         <button id="btn-favorite">收藏</button>
         <button id="btn-random-fav">随机收藏</button>
